@@ -87,28 +87,69 @@ async function fetchKiwiPrice(
   }
 }
 
-async function notifyTelegram(deals: Deal[]) {
+async function getSubscribers(): Promise<number[]> {
+  const kvUrl = process.env.KV_REST_API_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN;
+  if (!kvUrl || !kvToken) return [];
+  try {
+    const res = await fetch(`${kvUrl}/smembers/subscribers`, {
+      headers: { Authorization: `Bearer ${kvToken}` },
+    });
+    const data = await res.json();
+    return (data?.result ?? []).map((x: string) => Number(x)).filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+async function incrementDealCount(n: number) {
+  const kvUrl = process.env.KV_REST_API_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN;
+  if (!kvUrl || !kvToken) return;
+  await fetch(`${kvUrl}/incrby/stats:total_deals/${n}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${kvToken}` },
+  });
+}
+
+async function sendToTelegram(chatId: number | string, text: string) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  const channelId = process.env.TELEGRAM_CHANNEL_ID;
-  if (!botToken || !channelId || deals.length === 0) return;
+  if (!botToken) return;
+  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      parse_mode: "Markdown",
+      disable_web_page_preview: false,
+    }),
+  });
+}
+
+async function notifyTelegram(deals: Deal[]) {
+  if (deals.length === 0) return;
 
   const lines = deals.map((d) => {
     const pct = d.savingsPct ? `-${Math.round(d.savingsPct * 100)}%` : "";
     return `✈️ *TLV → ${d.destination}*\n💰 $${d.price} ${pct}\n📅 ${d.outboundDate} - ${d.inboundDate}\n🛫 ${d.airline}\n[הזמן עכשיו](${d.deepLink})`;
   });
 
-  const text = `🚨 *FlyPro Deal Alert*\n\n${lines.join("\n\n━━━━━━━━━━\n\n")}\n\n_עדכן ב-FlyPro Member Hub_`;
+  const text = `🚨 *FlyPro Deal Alert*\n\n${lines.join("\n\n━━━━━━━━━━\n\n")}\n\n_FlyPro Member Hub_`;
 
-  await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: channelId,
-      text,
-      parse_mode: "Markdown",
-      disable_web_page_preview: false,
-    }),
-  });
+  // 1) Public channel (if configured)
+  if (process.env.TELEGRAM_CHANNEL_ID) {
+    await sendToTelegram(process.env.TELEGRAM_CHANNEL_ID, text);
+  }
+
+  // 2) All subscribers from KV (sequential to avoid Telegram rate limits — 30 msg/sec)
+  const subs = await getSubscribers();
+  for (const chatId of subs) {
+    await sendToTelegram(chatId, text);
+    await new Promise((r) => setTimeout(r, 50));
+  }
+
+  await incrementDealCount(deals.length);
 }
 
 export async function GET(request: NextRequest) {
