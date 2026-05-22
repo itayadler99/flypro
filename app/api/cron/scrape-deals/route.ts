@@ -112,6 +112,24 @@ async function incrementDealCount(n: number) {
   });
 }
 
+async function storeRecentDeals(deals: Deal[]) {
+  const kvUrl = process.env.KV_REST_API_URL;
+  const kvToken = process.env.KV_REST_API_TOKEN;
+  if (!kvUrl || !kvToken || deals.length === 0) return;
+  for (const d of deals) {
+    await fetch(`${kvUrl}/lpush/deals:recent`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${kvToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ value: JSON.stringify(d) }),
+    });
+  }
+  // Keep last 50 deals only.
+  await fetch(`${kvUrl}/ltrim/deals:recent/0/49`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${kvToken}` },
+  });
+}
+
 async function sendToTelegram(chatId: number | string, text: string) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
   if (!botToken) return;
@@ -192,6 +210,7 @@ export async function GET(request: NextRequest) {
 
   if (deals.length > 0) {
     await notifyTelegram(deals);
+    await storeRecentDeals(deals);
   }
 
   return NextResponse.json({

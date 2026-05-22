@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getRecentDeals, formatDealHebrew } from "@/lib/deals";
 
-// Telegram bot webhook. Handles /start, /help, /unsubscribe.
+// Telegram bot webhook. Handles /start, /help, /unsubscribe, /stats, /deals, /premium.
 // Subscribers stored in Vercel KV (or fallback in-memory for dev).
 // Set webhook: curl https://api.telegram.org/bot<TOKEN>/setWebhook?url=https://flypro.co.il/api/telegram/webhook
 
@@ -27,7 +28,9 @@ const WELCOME = `🛫 *ברוך הבא ל-FlyPro Deal Hunter*
 
 📌 *פקודות:*
 /help - עזרה
+/deals - 3 הדילים האחרונים
 /stats - הסטטיסטיקות שלך
+/premium - הקורס המלא
 /unsubscribe - לעצור התראות
 
 ברוך הבא לקבוצה.`;
@@ -50,7 +53,9 @@ const HELP = `*FlyPro Deal Hunter - עזרה*
 
 *פקודות:*
 /start - התחל מחדש
+/deals - 3 הדילים האחרונים שמצאנו
 /stats - הסטטיסטיקות שלך
+/premium - מידע על הקורס המלא
 /unsubscribe - הפסק התראות
 
 שאלות? itay@flypro.co.il`;
@@ -170,6 +175,19 @@ export async function POST(request: NextRequest) {
   } else if (text === "/unsubscribe") {
     await removeSubscriber(chatId);
     await sendMessage(chatId, "התראות הופסקו. שלח /start כדי להירשם שוב.");
+  } else if (text === "/deals") {
+    const deals = await getRecentDeals(3);
+    if (deals.length === 0) {
+      await sendMessage(chatId, "אין דילים שמורים כרגע. הסריקה הבאה תוך פחות מ-3 שעות.");
+    } else {
+      const body = deals.map(formatDealHebrew).join("\n\n━━━━━━━━━━\n\n");
+      await sendMessage(chatId, `🔥 *הדילים האחרונים שמצאנו*\n\n${body}`);
+    }
+  } else if (text === "/premium") {
+    await sendMessage(
+      chatId,
+      `🎯 *הקורס המלא של FlyPro*\n\n12 מודולים · ארגז כלים ב-Notion · אחריות תוצאה.\n\n*₪397 חד-פעמי* (או 3 תשלומים של ₪139).\n\nלפרטים מלאים:\nhttps://flypro.co.il`
+    );
   } else {
     await sendMessage(chatId, "פקודה לא מוכרת. שלח /help לרשימת פקודות.");
   }

@@ -650,7 +650,7 @@ export default function Home() {
             <p className="text-sm text-zinc-500 mb-8">כולל מעמ · חשבונית מס נשלחת אוטומטית.</p>
 
             <Link
-              href="#"
+              href="/checkout"
               className="btn-primary block text-center w-full py-5 rounded-2xl font-bold text-white text-lg mb-4"
             >
               קנה את המערכת עכשיו
@@ -770,7 +770,7 @@ export default function Home() {
               <ul className="space-y-2 text-sm text-zinc-500">
                 <li><a href="#methods" className="hover:text-white">10 השיטות</a></li>
                 <li><a href="#pricing" className="hover:text-white">המחיר</a></li>
-                <li><a href="#" className="hover:text-white">שאלות נפוצות</a></li>
+                <li><a href="#faq" className="hover:text-white">שאלות נפוצות</a></li>
               </ul>
             </div>
             <div>
